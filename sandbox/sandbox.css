@@ -1,0 +1,15 @@
+.widgetIcon{
+    margin-top:90px;
+    width:90%
+}
+
+/* On screens that are 600px or less, set the background color to olive */
+@media screen and (max-width: 600px) {
+    .widgetIcon {
+        margin-left: 140px;
+        height: 80px;
+        position: absolute;
+        margin-top: -325px;
+        width: auto;
+    }
+}

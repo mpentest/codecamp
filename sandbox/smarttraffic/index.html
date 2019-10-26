@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Traffic</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+    <div class="title"><h2>Smart Traffic</h2></div>
+    <div class="container" >
+        <div class="userInterface">
+            Enter the URL to an image of an image you want to analyze.
+            <br><br>
+            Image to analyze: <input type="text" name="inputImage" id="inputImage" value="Enter image URL here." />
+            <button onclick="analyzeButtonClick(); processImage();">Analyze Image</button>
+            <br><br>
+            <div class="wrapper">
+                <div class="jsonOutput">
+                    Response:
+                    <br><br>
+                    <textarea id="responseTextArea2" class="UIInput"
+                  style="width:580px; height:20px;">
+                  </textarea>
+                  <span id="captionSpan"></span><br>
+                </div>
+                <div class="pad"></div>
+                <div class="imageDiv">
+                    
+                    
+                    <img id="sourceImage" onerror="common.imageLoadError()"/>
+                </div>
+            </div>
+            <div class="subKeyDiv" hidden>
+                Subscription Key: 
+                <input 
+                    type="text" 
+                    class="subKeyInput" 
+                    name="subscriptionKeyInput" 
+                    id="subscriptionKeyInput" 
+                    onchange="common.subscriptionChange()" 
+                    value="6fa2e8a432c4409b9c8d2308ba94580c" />
+                Subscription Region: 
+                <select name="subscriptionRegionSelect" id="subscriptionRegionSelect" onchange="common.subscriptionChange()">
+                    <option value="eastus">eastus</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<script src="jquery.min.js"></script>
+<script type="text/javascript" src="common.js"></script>
+
+<script type="text/javascript">
+function processImage() {
+
+        let subscriptionKey = '6fa2e8a432c4409b9c8d2308ba94580c';
+        let endpoint = 'https://traffic-cam.cognitiveservices.azure.com/';
+        if (!subscriptionKey) { throw new Error('Set your environment variables for your subscription key and endpoint.'); }
+        
+        var uriBase = endpoint + "vision/v2.0/detect";
+
+        // Request parameters.
+        var params = {
+            "visualFeatures": "Categories,Description,Color",
+            "details": "",
+            "language": "en",
+        };
+
+        // Display the image.
+        var sourceImageUrl = document.getElementById("inputImage").value;
+        document.querySelector("#sourceImage").src = sourceImageUrl;
+
+        // Make the REST API call.
+        $.ajax({
+            url: uriBase + "?" + $.param(params),
+
+            // Request headers.
+            beforeSend: function(xhrObj){
+                xhrObj.setRequestHeader("Content-Type","application/json");
+                xhrObj.setRequestHeader(
+                    "Ocp-Apim-Subscription-Key", subscriptionKey);
+            },
+
+            type: "POST",
+
+            // Request body.
+            data: '{"url": ' + '"' + sourceImageUrl + '"}',
+        })
+
+        .done(function(data) {
+            // Show formatted JSON on webpage.
+            //$("#responseTextArea2").val(JSON.stringify(data, null, 2));
+
+            if (data.objects) {
+            var carnum = data.objects;
+            var i = 0;
+            while (carnum[i]){
+                    i++;
+                    $("#responseTextArea2").val(i + " vehicles")
+
+            }
+                
+            
+        }
+        })
+
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            // Display error message.
+            var errorString = (errorThrown === "") ? "Error. " :
+                errorThrown + " (" + jqXHR.status + "): ";
+            errorString += (jqXHR.responseText === "") ? "" :
+                jQuery.parseJSON(jqXHR.responseText).message;
+            alert(errorString);
+        });
+    };
+
+function analyzeButtonClick() {
+
+    // Clear the display fields.
+    $("#sourceImage").attr("src", "#");
+    $("#responseTextArea").val("");
+    $("#captionSpan").text("");
+    
+    // Display the image.
+    var sourceImageUrl = $("#inputImage").val();
+    $("#sourceImage").attr("src", sourceImageUrl);
+    
+    AnalyzeImage(sourceImageUrl, $("#responseTextArea"), $("#captionSpan"));
+}
+
+/* Analyze the image at the specified URL by using Microsoft Cognitive Services Analyze Image API.
+ * @param {string} sourceImageUrl - The URL to the image to analyze.
+ * @param {<textarea> element} responseTextArea - The text area to display the JSON string returned
+ *                             from the REST API call, or to display the error message if there was 
+ *                             an error.
+ * @param {<span> element} captionSpan - The span to display the image caption.
+ */
+function AnalyzeImage(sourceImageUrl, responseTextArea, captionSpan) {
+    // Request parameters.
+    var params = {
+        "visualFeatures": "Categories,Description,Color",
+        "details": "",
+        "language": "en",
+    };
+    
+    // Perform the REST API call.
+    $.ajax({
+        url: common.uriBasePreRegion + 
+             $("#subscriptionRegionSelect").val() + 
+             common.uriBasePostRegion + 
+             common.uriBaseAnalyze +
+             "?" + 
+             $.param(params),
+                    
+        // Request headers.
+        beforeSend: function(jqXHR){
+            jqXHR.setRequestHeader("Content-Type","application/json");
+            jqXHR.setRequestHeader("Ocp-Apim-Subscription-Key", 
+                encodeURIComponent($("#subscriptionKeyInput").val()));
+        },
+        
+        type: "POST",
+        
+        // Request body.
+        data: '{"url": ' + '"' + sourceImageUrl + '"}',
+    })
+    
+    .done(function(data) {
+        // Show formatted JSON on webpage.
+        responseTextArea.val(JSON.stringify(data, null, 2));
+        
+        // Extract and display the caption and confidence from the first caption in the description object.
+        if (data.description && data.description.tags) {
+            var caption = data.description.tags[0];
+            var emergency = false;
+            var i = 0;
+            while (data.description.tags[i]){
+                caption = data.description.tags[i];
+                if (caption == "police") {
+                    emergency = true;
+                }
+                    i++;
+
+            }
+            if (emergency) {
+                    captionSpan.text("Emergency Truck open green light");
+                } else {
+                    captionSpan.text("No emergency trucks keep normal lights");
+                }
+                
+            
+        }
+    })
+    
+    .fail(function(jqXHR, textStatus, errorThrown) {
+        // Prepare the error string.
+        var errorString = (errorThrown === "") ? "Error. " : errorThrown + " (" + jqXHR.status + "): ";
+        errorString += (jqXHR.responseText === "") ? "" : (jQuery.parseJSON(jqXHR.responseText).message) ? 
+            jQuery.parseJSON(jqXHR.responseText).message : jQuery.parseJSON(jqXHR.responseText).error.message;
+        
+        // Put the error JSON in the response textarea.
+        responseTextArea.val(JSON.stringify(jqXHR, null, 2));
+        
+        // Show the error message.
+        alert(errorString);
+    });
+}
+
+</script>
